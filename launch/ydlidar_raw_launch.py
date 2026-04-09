@@ -16,12 +16,8 @@ from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
 from launch_ros.actions import LifecycleNode
-from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from launch.actions import LogInfo
-
-import lifecycle_msgs.msg
 import os
 
 
@@ -43,14 +39,8 @@ def generate_launch_description():
                                 parameters=[parameter_file],
                                 namespace='/',
                                 )
-    tf2_node = Node(package='tf2_ros',
-                    executable='static_transform_publisher',
-                    name='static_tf_pub_laser',
-                    arguments=['0', '0', '0.02','0', '0', '0', '1','base_link','laser'],
-                    )
 
     return LaunchDescription([
         params_declare,
         driver_node,
-        tf2_node,
     ])

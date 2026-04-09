@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  YDLIDAR SYSTEM
  *  YDLIDAR ROS 2 Node
  *
@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
   laser.setlidaropt(LidarPropSupportMotorDtrCtrl, &b_optvalue, sizeof(bool));
 
   //////////////////////float property/////////////////
-  /// unit: °
+  /// unit: ¡ã
   float f_optvalue = 180.0f;
   node->declare_parameter("angle_max", f_optvalue);
   node->get_parameter("angle_max", f_optvalue);
@@ -161,9 +161,18 @@ int main(int argc, char *argv[]) {
   } else {
     RCLCPP_ERROR(node->get_logger(), "%s\n", laser.DescribeError());
   }
-  
-  auto laser_pub = node->create_publisher<sensor_msgs::msg::LaserScan>("scan", rclcpp::SensorDataQoS());
-  auto pc_pub = node->create_publisher<sensor_msgs::msg::PointCloud>("point_cloud", rclcpp::SensorDataQoS());
+
+  // 创建QoS配置，使用RELIABLE策略与Nav2兼容
+  // Nav2的ObstacleLayer订阅scan话题时使用RELIABLE QoS
+  // 修改前使用SensorDataQoS默认的BEST_EFFORT策略，导致QoS不兼容警告
+  rclcpp::QoS scan_qos = rclcpp::SensorDataQoS();
+  scan_qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
+
+  rclcpp::QoS pc_qos = rclcpp::SensorDataQoS();
+  pc_qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
+
+  auto laser_pub = node->create_publisher<sensor_msgs::msg::LaserScan>("scan", scan_qos);
+  auto pc_pub = node->create_publisher<sensor_msgs::msg::PointCloud>("point_cloud", pc_qos);
   
   auto stop_scan_service =
     [&laser](const std::shared_ptr<rmw_request_id_t> request_header,
@@ -218,14 +227,33 @@ int main(int argc, char *argv[]) {
       int idx_timestamp = 1;
       pc_msg->channels[idx_timestamp].name = "stamps";
 
+    //   for(size_t i=0; i < scan.points.size(); i++) {
+    //     // double angle_test = scan.points[i].angle;
+    //     // if ((angle_test >= M_PI / 2 && angle_test <= M_PI) || (angle_test <= -M_PI / 2 && angle_test >= -M_PI)){
+    //     int index = std::ceil((scan.points[i].angle - scan.config.min_angle)/scan.config.angle_increment);
+    //     if(index >=0 && index < size) {
+	  // if (scan.points[i].range >= scan.config.min_range) {
+    //         scan_msg->ranges[index] = scan.points[i].range;
+    //         scan_msg->intensities[index] = scan.points[i].intensity;
+	  // }
+    //     }
+
       for(size_t i=0; i < scan.points.size(); i++) {
-        int index = std::ceil((scan.points[i].angle - scan.config.min_angle)/scan.config.angle_increment);
-        if(index >=0 && index < size) {
-	  if (scan.points[i].range >= scan.config.min_range) {
-            scan_msg->ranges[index] = scan.points[i].range;
-            scan_msg->intensities[index] = scan.points[i].intensity;
-	  }
-        }
+      double angle_deg = scan.points[i].angle * 180.0 / M_PI;
+      
+      if ((angle_deg >= 145.0 && angle_deg <= 180.0) || 
+          (angle_deg >= -180.0 && angle_deg <= -145.0)) {
+          continue;
+      }
+
+      int index = std::ceil((scan.points[i].angle - scan.config.min_angle)/scan.config.angle_increment);
+      if(index >=0 && index < size) {
+          if (scan.points[i].range >= scan.config.min_range) {
+              scan_msg->ranges[index] = scan.points[i].range;
+              scan_msg->intensities[index] = scan.points[i].intensity;
+          }
+      }
+      // }
 
 	if (scan.points[i].range >= scan.config.min_range &&
              scan.points[i].range <= scan.config.max_range) {
@@ -261,3 +289,4 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
+
